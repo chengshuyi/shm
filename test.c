@@ -45,7 +45,7 @@ RHINO_INLINE k_mm_list_t *init_mm_region(void *regionaddr, size_t len)
     firstblk->buf_size = MM_ALIGN_UP(sizeof(k_mm_region_info_t))
                          | RHINO_MM_ALLOCED | RHINO_MM_PREVALLOCED;
 #if (RHINO_CONFIG_MM_DEBUG > 0u)
-    firstblk->dye   = RHINO_MM_CORRUPT_DYE;
+    firstblk->dddye   = RHINO_MM_CORRUPT_DYE;
     firstblk->owner = 0;
 #endif
 
