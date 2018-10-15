@@ -5,14 +5,20 @@
 #include "rt_shm_ring.h"
 #include "rt_shm.h"
 
-uint8_t rt_shm_create(int key,size_t len){
+uint8_t rt_shm_create(key_t key,size_t len){
+    int shmid;
     rt_shm_ring_info_t* ring;
     
     if(len < sizeof(rt_shm_ring_info_t)){
         return -1;
     }
-    
-    ring = (rt_shm_blk_info_t*)shmat(key,NULL,0);
+    shmid = shmget(key, len, IPC_CREAT | 0666);
+
+    if(shmid == -1){
+        return -1;
+    }
+
+    ring = (rt_shm_blk_info_t*)shmat(shmid,NULL,0);
     ring->pool_start_offset = MM_ALIGN_UP(sizeof(rt_shm_ring_info_t));
     ring->pool_end_offset = MM_ALIGN_UP(len);
     ring->first_blk_offset = 0;
@@ -22,78 +28,59 @@ uint8_t rt_shm_create(int key,size_t len){
     return 1;
 }
 
-uint8_t rt_shm_push(int key,void *addr,size_t len){
+uint8_t rt_shm_push(key_t key,void *addr,size_t len){
+    int shmid;
     uint8_t* base_addr;
     rt_shm_ring_info_t* ring;
-    rt_shm_blk_info_t* last_blk;
-    rt_shm_blk_info_t* new_blk;
-    base_addr = shmat(key,NULL,0);
+    int ret;
+    /* */
+    if(len > UDP_PACKET_MAX_LEN){
+        return -1;
+    }
+    
+    /* get the shm id.*/
+    shmid = shmget(key,0,0);
+    if(shmid == -1){
+        return -1;
+    }
+    /* get the virtual address in process and the pool struct info.*/
+    base_addr = shmat(shmid,NULL,0);
+    if(base_addr == (void*)-1){
+        return -1;
+    }
     ring = (rt_shm_blk_info_t*)base_addr;
 
+    /* have enough space to store data.*/
     if(ring->left < MM_ALIGN_UP(sizeof(rt_shm_blk_info_t))+MM_ALIGN_UP(len))){
+        shmdt(shmid);
+        return -1;
+    }
+    ring_push(ring,addr,len);
+    shmdt(shmid);
+    return 1;
+}
+
+uint8_t rt_shm_pop(key_t key,void* addr,size_t* len){
+    int shmid;
+    uint8_t* base_addr;
+    rt_shm_ring_info_t *ring;
+
+    shmid = shmget(key,0,0);
+    if(shmid == -1){
         return -1;
     }
 
-    last_blk = (rt_shm_blk_info_t*)(base_addr+ring->last_blk_offset);
-
-    new_blk = (rt_shm_blk_info_t*)last_blk->end_addr_offset;
-    new_blk->start_addr_offset = last_blk->end_addr_offset;
-    new_blk->end_addr_offset = new_blk->start_addr_offset + MM_ALIGN_UP(sizeof(rt_shm_blk_info_t))+MM_ALIGN_UP(len)
-    if(new_blk->end_addr_offset >ring->pool_end_offset){
-        new_blk->end_addr_offset = new_blk->end_addr_offset - ring->pool_end_offset + ring->pool_start_offset;
-    }
-    
-    if((ring->pool_end_offset - new_blk->end_addr_offset) < MM_ALIGN_UP(sizeof(rt_shm_blk_info_t))){
-        if(ring->left <MM_ALIGN_UP(sizeof(rt_shm_blk_info_t))+MM_ALIGN_UP(len)) + ring->pool_end_offset - new_blk->end_addr_offset ){
-            return -1;
-        }
-        new_blk->end_addr_offset = ring->pool_end_offset;
+    base_addr = shmat(shmid, NULL, 0);
+    if(base_addr == (void*)-1){
+        return -1;
     }
 
-    if(new_blk->end_addr_offset <= new_blk->start_addr_offset){
-        memcpy();
+    ring = (rt_shm_blk_info_t*)base_addr;
+    if(ring->num==0){
+        return -1;
     }
-
-}
-
-void rt_shm_pop(int key,void* addr){
-
-    int* addr_start;
-
-    addr_start = addr;
-
-    if(addr_start == NULL){
-        addr_start = shmat(key, NULL, 0);
-    }
-
-    rt_shm_ring_info_t *ring;
-    ring = (rt_shm_blk_info_t)addr_start;
-    
-    if(ring->blk_num ==0 ){
-        return 1;
-    }
-
-    int* first_blk_start_addr;
-    first_blk_start_addr = (int*)(int**)&ring->first_blk;
-
-    rt_shm_blk_info_t *blk;
-    blk = (rt_shm_blk_info_t *)first_blk_start_addr;
-    
-    int s_offset,e_offset;
-
-    s_offset = sizeof(rt_shm_blk_info_t);
-    e_offset = s_offset + blk->length;
-
-    if(e_offset > s_offset){
-        memcpy(to_addr,first_blk_start_addr+s_offset,first_blk_start_addr+e_offset);
-    }else{
-        memcpy(to_addr,first_blk_start_addr+s_offset,addr_start+ring->pool_end_offset);
-        memcpy(to_addr+ring->pool_end_offset-s_offset,addr_start+ring->pool_start_offset,)
-    }
-
-    --ring->blk_num;
-    ring->first_blk = first_blk_start_addr+sizeof(rt_shm_blk_info_t)+blk->length;
-
+    ring_pop(ring,addr,len);    
+    shmdt(shmid);
     return 1;
 }
 

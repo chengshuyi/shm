@@ -10,6 +10,9 @@
 #define MM_ALIGN_DOWN(a)        ((a) & ~MM_ALIGN_MASK)
 
 
+#define UDP_PACKET_MAX_LEN       1480
+
+
 int rt_shm_open(const char *name, int oflag, mode_t mode);
 int rt_shm_unlink(const char *name);
 

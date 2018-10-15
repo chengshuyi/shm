@@ -4,12 +4,15 @@
 #include "linux/types.h"
 
 typedef struct _rt_shm_blk_info_t{
+    uint32_t len;
+    uint32_t a_len;
     size_t start_addr_offset;
     size_t end_addr_offset;
 }rt_shm_blk_info_t;
 
 typedef struct _rt_shm_ring_info_t{
-    size_t left;
+    uint32_t left;
+    uint32_t num;
     size_t pool_start_offset;
     size_t pool_end_offset;
     //rt_shm_blk_info_t* first_blk;  cant use virtual address.
